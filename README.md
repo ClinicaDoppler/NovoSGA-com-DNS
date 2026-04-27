@@ -9,7 +9,7 @@ Este passo a passo considera uma primeira instalação, com banco de dados vazio
 - Mercure
 - NovoSGA
 - Painel
-Triagem
+- Triagem
 - Caddy como proxy reverso com HTTPS interno
 - DNS local (ex.: Pi-hole), que foi a forma mais estável no ambiente testado (não acompanha na instalação).
 ---

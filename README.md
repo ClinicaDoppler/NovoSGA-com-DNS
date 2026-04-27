@@ -164,9 +164,10 @@ Acompanhe os logs do proxy:
 docker compose logs -f proxy
 ```
 O Caddy deve gerar os certificados locais para:
-`sga.seu_dominio_interno.local`
-`painel.seu_dominio_interno.local`
-`triagem.seu_dominio_interno.local`
+
+- `sga.seu_dominio_interno.local`
+- `painel.seu_dominio_interno.local`
+- `triagem.seu_dominio_interno.local`
 ---
 10. Fazer a instalação inicial do NovoSGA.
     
@@ -206,9 +207,9 @@ curl -vk --resolve triagem.seu_dominio_interno.local:443:192.168.1.14 https://tr
 ```
 No navegador.
 Acesse:
-`https://sga.seu_dominio_interno.local`
-`https://painel.seu_dominio_interno.local`
-`https://triagem.seu_dominio_interno.local`
+- `https://sga.seu_dominio_interno.local`
+- `https://painel.seu_dominio_interno.local`
+- `https://triagem.seu_dominio_interno.local`
 ---
 14. Confiar no certificado local.
     

@@ -1,0 +1,48 @@
+{
+    admin off
+}
+
+https://sga.seudominio.local {
+    tls internal
+
+    @rootcrt path /caddy-root.crt
+    handle @rootcrt {
+        root * /data/caddy/pki/authorities/local
+        rewrite * /root.crt
+        file_server
+    }
+
+    handle_path /mercure/* {
+        reverse_proxy mercure:3000
+    }
+
+    handle {
+        reverse_proxy novosga:8080
+    }
+}
+
+https://painel.seudominio.local {
+    tls internal
+
+    @rootcrt path /caddy-root.crt
+    handle @rootcrt {
+        root * /data/caddy/pki/authorities/local
+        rewrite * /root.crt
+        file_server
+    }
+
+    reverse_proxy painel:80
+}
+
+https://triagem.seudominio.local {
+    tls internal
+
+    @rootcrt path /caddy-root.crt
+    handle @rootcrt {
+        root * /data/caddy/pki/authorities/local
+        rewrite * /root.crt
+        file_server
+    }
+
+    reverse_proxy triagem:80
+}

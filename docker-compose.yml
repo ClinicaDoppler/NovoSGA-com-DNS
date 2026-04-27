@@ -1,0 +1,208 @@
+# ============================================================
+# Docker Compose - NovoSGA (versão corrigida)
+# ============================================================
+#
+# Esta versão corrige os erros do compose atual:
+# - remove o gerador inline do Caddy no serviço proxy;
+# - usa Caddyfile estático montado por volume;
+# - mantém a instalação em servidor único com Docker Compose;
+# - preserva a base: MySQL + Mercure + NovoSGA + Painel + Triagem.
+#
+# ------------------------------------------------------------
+# USO
+# ------------------------------------------------------------
+# 1) Salve este arquivo como docker-compose.yml
+# 2) Salve o arquivo Caddyfile na mesma pasta
+# 3) Opcional: crie um .env com os valores desejados
+# 4) Suba com:
+#      docker compose up -d
+#
+# ------------------------------------------------------------
+# PRIMEIRO TESTE RECOMENDADO
+# ------------------------------------------------------------
+# SERVER_IP=192.168.1.14
+# PANEL_IP_PORT=8443
+# TRIAGE_IP_PORT=9443
+# PRIMARY_URL=https://192.168.1.14
+#
+# Acessos:
+# - NovoSGA: https://IP
+# - Painel : https://IP:8443
+# - Triagem: https://IP:9443
+#
+# ============================================================
+
+version: "3.9"
+
+services:
+  # ==========================================================
+  # BANCO DE DADOS
+  # ==========================================================
+  mysqldb:
+    image: mysql:5.7
+    restart: unless-stopped
+
+    command:
+      - --default-storage-engine=INNODB
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+
+    environment:
+      TZ: "${TZ:-America/Sao_Paulo}"
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-novosga2}"
+      MYSQL_USER: "${MYSQL_USER:-novosga}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:-MySQL_App_P4ssW0rd}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:-MySQL_r00t_P4ssW0rd}"
+
+    volumes:
+      - /root/novosga/dados/mysql:/var/lib/mysql
+
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+    networks:
+      - novosga
+
+  # ==========================================================
+  # MERCURE
+  # ==========================================================
+  mercure:
+    image: novosga/mercure:v0.11
+    restart: unless-stopped
+
+    environment:
+      TZ: "${TZ:-America/Sao_Paulo}"
+      SERVER_NAME: ":3000"
+      MERCURE_PUBLISHER_JWT_KEY: "${MERCURE_JWT_SECRET:-ChangeThisMercureHubJWTSecretKey}"
+      MERCURE_SUBSCRIBER_JWT_KEY: "${MERCURE_JWT_SECRET:-ChangeThisMercureHubJWTSecretKey}"
+      MERCURE_EXTRA_DIRECTIVES: "anonymous 1; cors_origins *"
+
+    networks:
+      - novosga
+
+  # ==========================================================
+  # APLICAÇÃO PRINCIPAL - NOVOSGA
+  # ==========================================================
+  novosga:
+    image: novosga/novosga:2.2.13
+    restart: unless-stopped
+
+    depends_on:
+      - mysqldb
+
+    environment:
+      APP_ENV: "prod"
+      TZ: "${TZ:-America/Sao_Paulo}"
+      APP_LANGUAGE: "${APP_LANGUAGE:-pt_BR}"
+
+      DATABASE_URL: "mysql://${MYSQL_USER:-novosga}:${MYSQL_PASSWORD:-MySQL_App_P4ssW0rd}@mysqldb:3306/${MYSQL_DATABASE:-novosga2}?charset=utf8mb4&serverVersion=5.7.40"
+
+      MERCURE_JWT_SECRET: "${MERCURE_JWT_SECRET:-ChangeThisMercureHubJWTSecretKey}"
+      MERCURE_URL: "http://mercure:3000/.well-known/mercure"
+      MERCURE_PUBLIC_URL: "${PRIMARY_URL:-https://192.168.1.14}/mercure/.well-known/mercure"
+
+      NOVOSGA_ADMIN_USERNAME: "${NOVOSGA_ADMIN_USERNAME:-admin}"
+      NOVOSGA_ADMIN_PASSWORD: "${NOVOSGA_ADMIN_PASSWORD:-123456}"
+      NOVOSGA_ADMIN_FIRSTNAME: "${NOVOSGA_ADMIN_FIRSTNAME:-Administrador}"
+      NOVOSGA_ADMIN_LASTNAME: "${NOVOSGA_ADMIN_LASTNAME:-Global}"
+
+      NOVOSGA_UNITY_NAME: "${NOVOSGA_UNITY_NAME:-Minha unidade}"
+      NOVOSGA_UNITY_CODE: "${NOVOSGA_UNITY_CODE:-U01}"
+
+      NOVOSGA_NOPRIORITY_NAME: "${NOVOSGA_NOPRIORITY_NAME:-Normal}"
+      NOVOSGA_NOPRIORITY_DESCRIPTION: "${NOVOSGA_NOPRIORITY_DESCRIPTION:-Atendimento normal}"
+      NOVOSGA_PRIORITY_NAME: "${NOVOSGA_PRIORITY_NAME:-Prioridade}"
+      NOVOSGA_PRIORITY_DESCRIPTION: "${NOVOSGA_PRIORITY_DESCRIPTION:-Atendimento prioritário}"
+
+      NOVOSGA_PLACE_NAME: "${NOVOSGA_PLACE_NAME:-Mesa}"
+
+    volumes:
+      - /root/novosga/dados/imagens:/var/www/html/public/images
+
+    networks:
+      - novosga
+
+  # ==========================================================
+  # PAINEL
+  # ==========================================================
+  painel:
+    image: novosga/panel-app:v2.1.1
+    restart: unless-stopped
+
+    depends_on:
+      - novosga
+
+    environment:
+      APP_URL: "${PRIMARY_URL:-https://192.168.1.14}"
+      MERCURE_CONSUMER_URL: "${PRIMARY_URL:-https://192.168.1.14}/mercure/.well-known/mercure"
+
+    networks:
+      - novosga
+
+  # ==========================================================
+  # TRIAGEM
+  # ==========================================================
+  triagem:
+    image: novosga/triage-app:v2.1.0
+    restart: unless-stopped
+
+    depends_on:
+      - novosga
+
+    environment:
+      APP_URL: "${PRIMARY_URL:-https://192.168.1.14}"
+
+    networks:
+      - novosga
+
+  # ==========================================================
+  # PROXY REVERSO + HTTPS
+  # ==========================================================
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+
+    depends_on:
+      - novosga
+      - painel
+      - triagem
+      - mercure
+
+    ports:
+      - "80:80"
+      - "443:443"
+      - "${PANEL_IP_PORT:-8443}:8443"
+      - "${TRIAGE_IP_PORT:-9443}:9443"
+
+    environment:
+      SERVER_IP: "${SERVER_IP:-192.168.1.14}"
+      PANEL_IP_PORT: "${PANEL_IP_PORT:-8443}"
+      TRIAGE_IP_PORT: "${TRIAGE_IP_PORT:-9443}"
+
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+    networks:
+      - novosga
+
+# ============================================================
+# REDE INTERNA
+# ============================================================
+networks:
+  novosga:
+    driver: bridge
+
+# ============================================================
+# VOLUMES
+# ============================================================
+volumes:
+  mysql_data:
+  novosga_images:
+  caddy_data:
+  caddy_config:

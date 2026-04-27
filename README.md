@@ -2,45 +2,49 @@
 
 Instalação do NovoSGA do zero com Docker Compose
 
-Objetivo
+Objetivo: 
 Este passo a passo considera uma primeira instalação, com banco de dados vazio, usando:
-Docker Compose
-MySQL 5.7
-Mercure
-NovoSGA
-Painel
+- Docker Compose
+- MySQL 5.7
+- Mercure
+- NovoSGA
+- Painel
 Triagem
-Caddy como proxy reverso com HTTPS interno
-DNS local (ex.: Pi-hole), que foi a forma mais estável no ambiente testado (não acompanha na instalação).
+- Caddy como proxy reverso com HTTPS interno
+- DNS local (ex.: Pi-hole), que foi a forma mais estável no ambiente testado (não acompanha na instalação).
 ---
 Cenário considerado
-Servidor Docker: `192.168.1.2`  
-DNS local: `192.168.1.11`  
+- Servidor Docker: `192.168.1.2`  
+- DNS local: `192.168.1.11`  
+
 Hosts usados:
-`sga.seudominio.local`
-`painel.seudominio.local`
-`triagem.seudominio.local`
+- `sga.seudominio.local`
+- `painel.seudominio.local`
+- `triagem.seudominio.local`
 ---
-1. Pré-requisitos
+1. Pré-requisitos.
+
 Antes de começar, o servidor precisa ter:
-Docker instalado
-Docker Compose disponível no comando `docker compose`
-DNS local funcionando, apontando os nomes para o IP do servidor
-Portas 80 e 443 liberadas no servidor
-Teste rápido
+- Docker instalado
+- Docker Compose disponível no comando `docker compose`
+- DNS local funcionando, apontando os nomes para o IP do servidor
+- Portas 80 e 443 liberadas no servidor
+
+Teste rápido.
 ```bash
 docker --version
 docker compose version
 ```
 ---
-2. Criar a estrutura de pastas
+2. Criar a estrutura de pastas.
+   
 Crie a pasta principal do projeto e as pastas de persistência.
 ```bash
 mkdir -p /root/novosga
 mkdir -p /root/novosga/dados/mysql
 mkdir -p /root/novosga/dados/imagens
 ```
-Estrutura esperada
+Estrutura esperada.
 ```text
 /root/novosga/
 ├── docker-compose.yml
@@ -51,13 +55,14 @@ Estrutura esperada
     └── imagens/
 ```
 ---
-3. Limpar as pastas se for uma instalação nova
+3. Limpar as pastas se for uma instalação nova.
+
 Se a ideia for começar do zero, deixe a pasta do banco completamente vazia.
 ```bash
 find /root/novosga/dados/mysql -mindepth 1 -delete
 find /root/novosga/dados/imagens -mindepth 1 -delete
 ```
-Confirmar se a pasta do banco está vazia
+Confirmar se a pasta do banco está vazia.
 ```bash
 ls -la /root/novosga/dados/mysql
 ```
@@ -74,7 +79,8 @@ Dentro de `/root/novosga`, salve os arquivos:
 `Caddyfile`
 `.env`
 ---
-5. Exemplo do arquivo `.env`
+5. Exemplo do arquivo `.env`.
+   
 Crie o arquivo:
 ```bash
 nano /root/novosga/.env
@@ -162,47 +168,52 @@ O Caddy deve gerar os certificados locais para:
 `painel.seu_dominio_interno.local`
 `triagem.seu_dominio_interno.local`
 ---
-10. Fazer a instalação inicial do NovoSGA
+10. Fazer a instalação inicial do NovoSGA.
+    
 Como o banco é novo, somente subir os containers não basta.  
+
 É obrigatório executar o instalador do NovoSGA para criar a estrutura do banco.
 Rode:
 ```bash
 docker exec -it novosga-novosga-1 sh -lc 'cd /var/www/html && php bin/console novosga:install'
 ```
 Esse comando cria as tabelas iniciais, incluindo a tabela `metadata`, que é necessária para a tela de login funcionar.
-Se quiser mais detalhes na execução
+Se quiser mais detalhes na execução.
 ```bash
 docker exec -it novosga-novosga-1 sh -lc 'cd /var/www/html && php bin/console novosga:install -vvv'
 ```
 ---
-11. Limpar o cache após a instalação
+11. Limpar o cache após a instalação.
 Depois do instalador:
 ```bash
 docker exec -it novosga-novosga-1 sh -lc 'cd /var/www/html && php bin/console cache:clear --env=prod'
 ```
 ---
-12. Validar se as tabelas foram criadas
+12. Validar se as tabelas foram criadas.
 Confira no banco:
 ```bash
 docker exec -it novosga-mysqldb-1 mysql -unovosga -pMySQL_App_P4ssW0rd -D novosga2 -e "show tables;"
 ```
 Se aparecerem várias tabelas, a instalação do banco foi concluída.
 ---
-13. Testar os acessos
+13. Testar os acessos.
+    
 Teste pelo terminal:
 ```bash
 curl -vk --resolve sga.seu_dominio_interno.local:443:192.168.1.14 https://sga.seu_dominio_interno.local
 curl -vk --resolve painel.seu_dominio_interno.local:443:192.168.1.14 https://painel.seu_dominio_interno.local
 curl -vk --resolve triagem.seu_dominio_interno.local:443:192.168.1.14 https://triagem.seu_dominio_interno.local
 ```
-No navegador
+No navegador.
 Acesse:
 `https://sga.seu_dominio_interno.local`
 `https://painel.seu_dominio_interno.local`
 `https://triagem.seu_dominio_interno.local`
 ---
-14. Confiar no certificado local
+14. Confiar no certificado local.
+    
 Como o Caddy usa `tls internal`, o navegador vai indicar que o certificado não é confiável até a CA ser importada.
+
 Baixe o certificado raiz por:
 ```text
 https://sga.seu_dominio_interno.local/caddy-root.crt
